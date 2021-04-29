@@ -1,0 +1,179 @@
+// resolve用来拼接绝对路径的方法
+const { resolve } = require('path')
+//1. 下载	2. 引入	3.使用
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const OptimizeCssAssetsWebpackPlugin = require('optimize-css-assets-webpack-plugin');
+const TerserWebpackPlugin = require('terser-webpack-plugin')
+
+
+module.exports = {
+  // // 1. String ：单入口， 打包成一个chunk,输出一个bundle文件，chunk的名称为默认。
+  entry: './src/js/index.js',
+  // // 2. Array ： 多入口， 写多个入口，所有入口文件形成一个chunk(名称默认), 输出只有一个bundle, chunk名称默认
+  //   entry: ["./src/two.js",'./src/index.js'],
+  // // 3. Object: 多入口， 有几个入口文件就生成几个chunk， 并输出几个bundle文件， chunk的名称是key
+  //   entry: {
+  //       two: "./src/two.js",
+  //       index:'./src/index.js'
+  //   },
+  // // 4. 特殊用法：
+  //     entry: {
+  //       // 数组中所有入口文件生成一个chunk, 输出一个bundle文件， chunk的名称是key
+  //       onetwo: ["./src/one.js","./src/two.js"],
+  //       // 形成一个chunk, 输出一个bundle文件
+  //         index:'./src/index.js'
+  //     },
+  output: {
+    // 输出
+    // 单入口文件时
+    filename: 'js/build.js',
+    //多入口文件时
+    // filename: 'js/[name].js',
+    // __dirname是nodejs的变量，代表当前文件的目录绝对路径
+    path: resolve(__dirname, 'build'), // 输出路径，所有资源打包都会输出到这个文件夹下
+  },
+  optimization: {
+    minimize: true,
+    minimizer: [
+      new TerserWebpackPlugin(),
+      new OptimizeCssAssetsWebpackPlugin()
+    ]
+  },
+  // loader配置
+  module: {
+    rules: [
+      // 详细的loader配置
+      // 不同文件必须配置不同loader处理
+      {
+        // 匹配哪些文件
+        test: /\.less$/,
+        // 使用哪些loader进行处理
+        use: [
+          // use数组中loader执行顺序：从右到左，从下到上，依次执行(先执行css-loader)
+          // style-loader：创建style标签，将js中的样式资源插入进去，添加到head中生效
+          // 'style-loader',
+          //MiniCssExtractPlugin.loader :
+          MiniCssExtractPlugin.loader,
+          // css-loader：将css文件变成commonjs模块加载到js中，里面内容是样式字符串
+          'css-loader',
+          // less-loader：将less文件编译成css文件，需要下载less-loader和less
+          'less-loader',
+          //postcss-loader：postcss会找到package.json中的browserslist里面的配置，通过配置加载css的兼容性
+          //修改loader的配置， 新版需要写postcss.config.js,  less和sass兼容性同理
+          //"browserslist": {"production": [],"modern": [],"ssr": []} 或者"browserslist":[]
+          'postcss-loader'
+        ],
+      },
+      {
+        test: /\.scss$/,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+          'sass-loader',
+          'postcss-loader'
+        ],
+      },
+      {
+        test: /\.css$/,
+        use: [
+          // 'style-loader',
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+          'postcss-loader'
+        ],
+      },
+      {
+        // url-loader：处理图片资源，问题：默认处理不了html中的img图片
+        test: /\.(jpe?g|png|gif|webp)$/,
+        // 需要下载 url-loader file-loader
+        loader: 'url-loader',
+        options: {
+          // 图片大小小于8kb，就会被base64处理，优点：减少请求数量（减轻服务器压力），缺点：图片体积会更大（文件请求速度更慢）
+          // base64在客户端本地解码所以会减少服务器压力，如果图片过大还采用base64编码会导致cpu调用率上升，网页加载时变卡
+          limit: 8 * 1024,
+          // 给图片重命名，[hash:10]：取图片的hash的前10位，[ext]：取文件原来扩展名
+          name: '[name][hash:10].[ext]',
+          // 问题：因为url-loader默认使用es6模块化解析，而html-loader引入图片是conmonjs，解析时会出问题：[object Module]
+          // 解决：关闭url-loader的es6模块化，使用commonjs解析
+          // esModule: false,
+          outputPath: 'img/',
+          publicPath: '../img/'
+        },
+      },
+      {
+        test: /\.html$/,
+        // 处理html文件的img图片（负责引入img，从而能被url-loader进行处理）
+        loader: 'html-loader',
+      },
+      // 打包其他资源(除了html/js/css资源以外的资源)
+      {
+        // 排除html|js|css|less|jpg|png|gif文件
+        exclude: /\.(html|js|css|less|scss|jpe?g|png|gif|webp)/,
+        // file-loader：处理其他文件
+        loader: 'file-loader',
+        options: {
+          name: '[hash:10].[ext]',
+          outputPath: 'font/',
+          publicPath: '../font/',
+        },
+      },
+      {
+        //eslint 其实与 webpack 没有任何关系，两者并不互相依赖，甚至一般情况下我们并不会在 webpack 中进行 eslint 的配置，可以单独使用。
+        //语法检查使用eslint-loader， 并基于eslint包，只用来检查js语法。
+        //需要使用js来的规则库来检查代码 “airbnb”， 需要eslint-config-airbnb-base和eslint-plugin-import 两个包
+        test: /\.js$/,
+        exclude: /node_modules/,
+        // 处理html文件的img图片（负责引入img，从而能被url-loader进行处理）
+        loader: 'eslint-loader',
+        options: {
+          //自动修复
+          fix: true
+        }
+      }
+    ],
+  },
+
+  // plugin的配置
+  plugins: [
+    // html-webpack-plugin：默认会创建一个空的html文件，自动引入打包输出的所有资源（JS/CSS）
+    // 需要有结构的HTML文件可以加一个template
+    new HtmlWebpackPlugin({
+      // 复制这个./src/index.html文件，并自动引入打包输出的所有资源（JS/CSS）
+      template: './src/index.html',
+      // 默认是index.html名称，通过filename设置输出文件名称
+      filename: "index.html",
+      // 压缩html代码
+      // minify: {
+      //   // 移除空格
+      //   collapseWhitespace:true,
+      //   // 移除注释
+      //   removeComments:true
+      // },
+      //指定多个chunk
+      // chunks: ["cart","vendor"]
+    }),
+    new MiniCssExtractPlugin({
+      filename: './css/demo.css'
+    },
+      // new OptimizeCssAssetsWebpackPlugin()
+    ),
+  ],
+  // 模式
+  mode: 'development', // 开发模式
+  // 开发服务器 devServer：用来自动化，不用每次修改后都重新输入webpack打包一遍（自动编译，自动打开浏览器，自动刷新浏览器）
+  // 特点：只会在内存中编译打包，不会有任何输出（不会像之前那样在外面看到打包输出的build包，而是在内存中，关闭后会自动删除）
+  // 启动devServer指令为：npx webpack-dev-server
+  //devServer给我们提供了开发过程中的服务器，是一个使用了express的Http服务器，它的作用主要是为了监听资源文件的改变，该http服务器和client使用了websocket通信协议，只要资源文件发生改变，webpack-dev-server就会实时的进行编译。
+
+  devServer: {
+    // 项目构建后路径
+    contentBase: resolve(__dirname, 'build'),
+    // 启动gzip压缩
+    compress: true,
+    // 端口号
+    port: 3001,
+    // 自动打开浏览器
+    open: true,
+  },
+}
